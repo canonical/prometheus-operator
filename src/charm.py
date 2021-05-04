@@ -260,6 +260,52 @@ class PrometheusCharm(CharmBase):
 
         return yaml.dump(scrape_config)
 
+    def _prometheus_rbac(self):
+        """Construct Prometheus container RBAC
+        Based on https://github.com/prometheus-community/helm-charts/blob/97997ccc4bdd8699e74535dab24a861983a83b1e/charts/prometheus/templates/server/clusterrole.yaml
+        """
+
+        rbac_config = {
+            'roles': [{
+                'global': True,
+                'rules': [
+                    {
+                        'apiGroups': [''],
+                        'resources': [
+                            'nodes',
+                            'nodes/proxy',
+                            'nodes/metrics',
+                            'services',
+                            'endpoints',
+                            'pods',
+                            'ingresses',
+                            'configmaps'
+                        ],
+                        'verbs': ['get', 'list', 'watch'],
+                    },
+                    {
+                        'apiGroups': [
+                            'extensions',
+                            'networking.k8s.io',
+                        ],
+                        'resources': [
+                            'ingresses',
+                            'ingresses/status',
+                        ],
+                        'verbs': ['get', 'list', 'watch'],
+                    },
+                    {
+                        'nonResourceURLs': ['/metrics'],
+                        'verbs': ['get'],
+                    },
+                ]
+            }]
+        }
+
+        logger.debug('Prometheus RBAC config: {}'.format(rbac_config))
+
+        return rbac_config
+
     def _build_pod_spec(self):
         """Construct a Juju pod specification for Prometheus
         """
@@ -306,7 +352,8 @@ class PrometheusCharm(CharmBase):
                         'content': self._prometheus_config()
                     }]
                 }]
-            }]
+            }],
+            'serviceAccount': self._prometheus_rbac(),
         }
 
         return spec
